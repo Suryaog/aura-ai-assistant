@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check, Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
+import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check, Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, X, FileText } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { SettingsDialog } from "./SettingsDialog";
 import { ModelConfigDialog } from "./ModelConfigDialog";
