@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check } from "lucide-react";
+import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check, Copy, ThumbsUp, ThumbsDown, RotateCcw } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { SettingsDialog } from "./SettingsDialog";
 import { ModelConfigDialog } from "./ModelConfigDialog";
@@ -9,14 +9,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   type Chat, type Message, type Settings,
-  loadChats, saveChats, loadSettings, saveSettings, uid,
-} from "@/lib/store";
+  defaultSettings, uid,
+} from "@/lib/types";
+import { getChats, saveChatsFn, getSettingsFn, saveSettingsFn } from "@/server/data.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export function ChatApp() {
-  const [settings, setSettings] = useState<Settings>(() => loadSettings());
-  const [chats, setChats] = useState<Chat[]>(() => loadChats());
+  const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -28,8 +30,33 @@ export function ChatApp() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { saveChats(chats); }, [chats]);
-  useEffect(() => { saveSettings(settings); }, [settings]);
+  // Initial load from server
+  useEffect(() => {
+    (async () => {
+      try {
+        const [s, c] = await Promise.all([getSettingsFn(), getChats()]);
+        setSettings(s);
+        setChats(c);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, []);
+
+  // Persist to server (debounced)
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(() => { saveChatsFn({ data: { chats } }).catch(() => {}); }, 250);
+    return () => clearTimeout(t);
+  }, [chats, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(() => { saveSettingsFn({ data: { settings } }).catch(() => {}); }, 250);
+    return () => clearTimeout(t);
+  }, [settings, loaded]);
 
   const active = useMemo(() => chats.find(c => c.id === activeId) ?? null, [chats, activeId]);
   const activeModel = settings.models.find(m => m.id === settings.activeModelId) ?? settings.models[0];
@@ -55,39 +82,10 @@ export function ChatApp() {
     setChats(prev => prev.map(c => c.id === id ? fn(c) : c));
   };
 
-  const send = async () => {
-    const text = input.trim();
-    if (!text || streaming) return;
-    if (!settings.apiKey) {
-      toast.error("Add your NVIDIA NIM API key in Settings");
-      setSettingsOpen(true);
-      return;
-    }
-    if (!activeModel) { toast.error("No model selected"); return; }
-
-    let chat = active;
-    if (!chat) {
-      chat = {
-        id: uid(),
-        title: text.slice(0, 40),
-        messages: [],
-        createdAt: Date.now(),
-        modelId: settings.activeModelId,
-      };
-      setChats(prev => [chat!, ...prev]);
-      setActiveId(chat.id);
-    }
-    const userMsg: Message = { id: uid(), role: "user", content: text };
-    const assistantMsg: Message = { id: uid(), role: "assistant", content: "" };
-    const chatId = chat.id;
-    const baseMessages = [...chat.messages, userMsg];
-    updateChat(chatId, c => ({ ...c, messages: [...baseMessages, assistantMsg] }));
-    setInput("");
-    setStreaming(true);
-
+  const runCompletion = async (chatId: string, baseMessages: Message[], assistantMsgId: string) => {
     const controller = new AbortController();
     abortRef.current = controller;
-
+    setStreaming(true);
     try {
       const ctxLimit = activeModel.config.contextWindow;
       const trimmed = ctxLimit > 0 ? baseMessages.slice(-ctxLimit) : baseMessages;
@@ -145,7 +143,7 @@ export function ChatApp() {
               assistantContent += delta;
               updateChat(chatId, c => ({
                 ...c,
-                messages: c.messages.map(m => m.id === assistantMsg.id ? { ...m, content: assistantContent } : m),
+                messages: c.messages.map(m => m.id === assistantMsgId ? { ...m, content: assistantContent } : m),
               }));
             }
           } catch { buffer = line + "\n" + buffer; break; }
@@ -156,7 +154,7 @@ export function ChatApp() {
         toast.error(e.message || "Request failed");
         updateChat(chatId, c => ({
           ...c,
-          messages: c.messages.map(m => m.id === assistantMsg.id ? { ...m, content: `_Error: ${e.message}_` } : m),
+          messages: c.messages.map(m => m.id === assistantMsgId ? { ...m, content: `_Error: ${e.message}_` } : m),
         }));
       }
     } finally {
@@ -165,11 +163,51 @@ export function ChatApp() {
     }
   };
 
+  const send = async () => {
+    const text = input.trim();
+    if (!text || streaming) return;
+    if (!settings.apiKey) {
+      toast.error("Add your NVIDIA NIM API key in Settings");
+      setSettingsOpen(true);
+      return;
+    }
+    if (!activeModel) { toast.error("No model selected"); return; }
+
+    let chat = active;
+    if (!chat) {
+      chat = {
+        id: uid(),
+        title: text.slice(0, 40),
+        messages: [],
+        createdAt: Date.now(),
+        modelId: settings.activeModelId,
+      };
+      setChats(prev => [chat!, ...prev]);
+      setActiveId(chat.id);
+    }
+    const userMsg: Message = { id: uid(), role: "user", content: text };
+    const assistantMsg: Message = { id: uid(), role: "assistant", content: "" };
+    const baseMessages = [...chat.messages, userMsg];
+    updateChat(chat.id, c => ({ ...c, messages: [...baseMessages, assistantMsg] }));
+    setInput("");
+    await runCompletion(chat.id, baseMessages, assistantMsg.id);
+  };
+
+  const regenerate = async () => {
+    if (!active || streaming) return;
+    // Drop trailing assistant messages
+    let msgs = [...active.messages];
+    while (msgs.length && msgs[msgs.length - 1].role === "assistant") msgs.pop();
+    if (!msgs.length) return;
+    const assistantMsg: Message = { id: uid(), role: "assistant", content: "" };
+    updateChat(active.id, c => ({ ...c, messages: [...msgs, assistantMsg] }));
+    await runCompletion(active.id, msgs, assistantMsg.id);
+  };
+
   const stop = () => { abortRef.current?.abort(); };
 
   return (
     <div className="flex h-dvh w-full bg-background text-foreground overflow-hidden">
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 w-72 border-r border-border bg-card flex flex-col transition-transform duration-200 md:static md:translate-x-0",
@@ -222,7 +260,6 @@ export function ChatApp() {
         <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Main */}
       <main className="flex-1 flex flex-col min-w-0">
         <header className="flex items-center justify-between px-3 md:px-4 h-14 border-b border-border">
           <button className="md:hidden p-2 -ml-2 text-foreground" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
@@ -281,14 +318,20 @@ export function ChatApp() {
             </div>
           ) : (
             <div className="mx-auto w-full max-w-3xl px-4 py-6 space-y-6">
-              {active.messages.map(m => (
-                <MessageBubble key={m.id} message={m} />
+              {active.messages.map((m, idx) => (
+                <MessageBubble
+                  key={m.id}
+                  message={m}
+                  isLast={idx === active.messages.length - 1}
+                  streaming={streaming}
+                  onRegenerate={regenerate}
+                />
               ))}
             </div>
           )}
         </div>
 
-        <div className="border-t border-border bg-background">
+        <div className="bg-background">
           <div className="mx-auto w-full max-w-3xl px-3 md:px-4 py-3">
             <div className="flex items-end gap-2 rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-ring transition">
               <textarea
@@ -337,7 +380,7 @@ export function ChatApp() {
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, isLast, streaming, onRegenerate }: { message: Message; isLast: boolean; streaming: boolean; onRegenerate: () => void }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
@@ -347,9 +390,42 @@ function MessageBubble({ message }: { message: Message }) {
       </div>
     );
   }
+  const showActions = !!message.content && !(isLast && streaming);
   return (
     <div className="text-[15px]">
       {message.content ? <Markdown>{message.content}</Markdown> : <TypingDots />}
+      {showActions && (
+        <AssistantActions content={message.content} canRegenerate={isLast} onRegenerate={onRegenerate} />
+      )}
+    </div>
+  );
+}
+
+function AssistantActions({ content, canRegenerate, onRegenerate }: { content: string; canRegenerate: boolean; onRegenerate: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const copy = async () => {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  const btn = "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition";
+  return (
+    <div className="flex items-center gap-0.5 mt-2 -ml-1.5">
+      <button onClick={copy} className={btn} aria-label="Copy">
+        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+      </button>
+      <button onClick={() => setFeedback(feedback === "up" ? null : "up")} className={cn(btn, feedback === "up" && "text-foreground bg-accent")} aria-label="Good response">
+        <ThumbsUp className="h-4 w-4" />
+      </button>
+      <button onClick={() => setFeedback(feedback === "down" ? null : "down")} className={cn(btn, feedback === "down" && "text-foreground bg-accent")} aria-label="Bad response">
+        <ThumbsDown className="h-4 w-4" />
+      </button>
+      {canRegenerate && (
+        <button onClick={onRegenerate} className={btn} aria-label="Regenerate">
+          <RotateCcw className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 }

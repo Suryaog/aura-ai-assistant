@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import type { ModelDef, ModelConfig } from "@/lib/store";
+import type { ModelDef, ModelConfig } from "@/lib/types";
 
 function Row({ label, value, children }: { label: string; value: string; children: React.ReactNode }) {
   return (

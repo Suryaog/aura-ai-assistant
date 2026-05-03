@@ -7,7 +7,7 @@ export interface ModelConfig {
   maxTokens: number;
   frequencyPenalty: number;
   presencePenalty: number;
-  contextWindow: number; // max messages to send (0 = all)
+  contextWindow: number;
   thinking: boolean;
 }
 export interface ModelDef {
@@ -23,9 +23,6 @@ export interface Settings {
   activeModelId: string;
   systemPrompt: string;
 }
-
-const SETTINGS_KEY = "nim_settings_v2";
-const CHATS_KEY = "nim_chats_v1";
 
 export const defaultConfig: ModelConfig = {
   temperature: 0.7,
@@ -49,38 +46,5 @@ export const defaultSettings: Settings = {
   activeModelId: "m1",
   systemPrompt: "You are a helpful assistant. Be concise and clear.",
 };
-
-function migrate(raw: any): Settings {
-  const merged: Settings = { ...defaultSettings, ...raw };
-  merged.models = (merged.models || []).map((m: any) => ({
-    ...m,
-    config: { ...defaultConfig, ...(m.config || {}) },
-  }));
-  if (!merged.models.length) merged.models = defaultSettings.models;
-  return merged;
-}
-
-export function loadSettings(): Settings {
-  if (typeof window === "undefined") return defaultSettings;
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY) || localStorage.getItem("nim_settings_v1");
-    if (!raw) return defaultSettings;
-    return migrate(JSON.parse(raw));
-  } catch { return defaultSettings; }
-}
-export function saveSettings(s: Settings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-}
-
-export function loadChats(): Chat[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(CHATS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-export function saveChats(c: Chat[]) {
-  localStorage.setItem(CHATS_KEY, JSON.stringify(c));
-}
 
 export const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);

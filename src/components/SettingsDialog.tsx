@@ -4,10 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Download, Upload } from "lucide-react";
-import type { Settings, ModelDef, Chat } from "@/lib/store";
-import { uid, defaultConfig, loadChats } from "@/lib/store";
-import { toast } from "sonner";
+import { Plus, Trash2 } from "lucide-react";
+import type { Settings, ModelDef } from "@/lib/types";
+import { uid, defaultConfig } from "@/lib/types";
 
 export function SettingsDialog({
   open, onOpenChange, settings, onChange,
@@ -34,30 +33,6 @@ export function SettingsDialog({
     update({ models, activeModelId: draft.activeModelId === id ? (models[0]?.id ?? "") : draft.activeModelId });
   };
 
-  const exportChats = () => {
-    const chats = loadChats();
-    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), chats }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `chats-${Date.now()}.json`; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importChats = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      const chats: Chat[] = Array.isArray(data) ? data : data.chats;
-      if (!Array.isArray(chats)) throw new Error("Invalid file");
-      const existing = loadChats();
-      const merged = [...chats, ...existing.filter(c => !chats.find(n => n.id === c.id))];
-      localStorage.setItem("nim_chats_v1", JSON.stringify(merged));
-      toast.success(`Imported ${chats.length} chats. Reload to see them.`);
-    } catch (err: any) { toast.error(err.message || "Import failed"); }
-    e.target.value = "";
-  };
-
   const save = () => { onChange(draft); onOpenChange(false); };
 
   return (
@@ -65,7 +40,7 @@ export function SettingsDialog({
       <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>API key, models, and chat data.</DialogDescription>
+          <DialogDescription>API key and models. Stored on the server in <code className="font-mono text-xs">data/settings.json</code>.</DialogDescription>
         </DialogHeader>
         <div className="space-y-5 pt-2">
           <div className="space-y-2">
@@ -100,20 +75,6 @@ export function SettingsDialog({
               <Input placeholder="model id (e.g. meta/llama...)" value={newModel} onChange={(e) => setNewModel(e.target.value)} />
               <Button type="button" onClick={addModel} variant="secondary"><Plus className="h-4 w-4" /></Button>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Chat data</Label>
-            <div className="flex gap-2 flex-wrap">
-              <Button type="button" variant="secondary" onClick={exportChats}>
-                <Download className="h-4 w-4" /> Export JSON
-              </Button>
-              <label className="inline-flex items-center gap-2 rounded-md bg-secondary text-secondary-foreground px-3 h-9 text-sm font-medium cursor-pointer hover:bg-secondary/80">
-                <Upload className="h-4 w-4" /> Import JSON
-                <input type="file" accept="application/json" className="hidden" onChange={importChats} />
-              </label>
-            </div>
-            <p className="text-xs text-muted-foreground">Stored locally in your browser via localStorage as JSON (keys: <code className="font-mono">nim_chats_v1</code>, <code className="font-mono">nim_settings_v2</code>).</p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
