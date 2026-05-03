@@ -227,6 +227,31 @@ export function ChatApp() {
 
   const stop = () => { abortRef.current?.abort(); };
 
+  const onFiles = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    const remaining = 20 - pending.length;
+    if (remaining <= 0) { toast.error("Max 20 files"); return; }
+    const list = Array.from(files).slice(0, remaining);
+    const out: Attachment[] = [];
+    for (const f of list) {
+      if (f.size > 10 * 1024 * 1024) { toast.error(`${f.name} too large (max 10MB)`); continue; }
+      const isImage = f.type.startsWith("image/");
+      try {
+        if (isImage) {
+          const data = await new Promise<string>((res, rej) => {
+            const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(f);
+          });
+          out.push({ name: f.name, mime: f.type, size: f.size, kind: "image", data });
+        } else {
+          const data = await f.text();
+          out.push({ name: f.name, mime: f.type || "text/plain", size: f.size, kind: "text", data });
+        }
+      } catch { toast.error(`Failed to read ${f.name}`); }
+    }
+    setPending(p => [...p, ...out]);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
   return (
     <div className="flex h-dvh w-full bg-background text-foreground overflow-hidden">
       <aside
