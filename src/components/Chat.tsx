@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare } from "lucide-react";
+import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { SettingsDialog } from "./SettingsDialog";
+import { ModelConfigDialog } from "./ModelConfigDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
