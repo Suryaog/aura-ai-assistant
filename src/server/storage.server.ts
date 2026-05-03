@@ -9,7 +9,7 @@ export async function readJson<T>(key: string, fallback: T): Promise<T> {
 export async function writeJson(key: string, value: unknown): Promise<void> {
   const { error } = await supabaseAdmin
     .from("kv_store")
-    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    .upsert({ key, value, updated_at: new Date().toISOString() } as any, { onConflict: "key" });
   if (error) throw error;
 }
 
