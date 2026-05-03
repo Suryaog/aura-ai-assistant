@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check, Copy, ThumbsUp, ThumbsDown, RotateCcw } from "lucide-react";
+import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check, Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { SettingsDialog } from "./SettingsDialog";
 import { ModelConfigDialog } from "./ModelConfigDialog";
@@ -8,7 +8,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  type Chat, type Message, type Settings,
+  type Chat, type Message, type Settings, type Attachment,
   defaultSettings, uid,
 } from "@/lib/types";
 import { getChats, saveChatsFn, getSettingsFn, saveSettingsFn } from "@/lib/data.functions";
