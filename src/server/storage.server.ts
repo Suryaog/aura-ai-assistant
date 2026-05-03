@@ -1,27 +1,24 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import { createClient } from "@supabase/supabase-js";
 
-const DATA_DIR = path.resolve(process.cwd(), "data");
-const CHATS_FILE = path.join(DATA_DIR, "chats.json");
-const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
+const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL!;
+const key =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
 
-async function ensureDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+const sb = createClient(url, key, { auth: { persistSession: false } });
+
+export async function readJson<T>(key: string, fallback: T): Promise<T> {
+  const { data, error } = await sb.from("kv_store").select("value").eq("key", key).maybeSingle();
+  if (error || !data) return fallback;
+  return data.value as T;
 }
 
-export async function readJson<T>(file: string, fallback: T): Promise<T> {
-  try {
-    await ensureDir();
-    const txt = await fs.readFile(file, "utf-8");
-    return JSON.parse(txt) as T;
-  } catch {
-    return fallback;
-  }
+export async function writeJson(key: string, value: unknown): Promise<void> {
+  const { error } = await sb
+    .from("kv_store")
+    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+  if (error) throw error;
 }
 
-export async function writeJson(file: string, data: unknown): Promise<void> {
-  await ensureDir();
-  await fs.writeFile(file, JSON.stringify(data, null, 2), "utf-8");
-}
-
-export const FILES = { CHATS_FILE, SETTINGS_FILE };
+export const FILES = { CHATS_FILE: "chats", SETTINGS_FILE: "settings" };
