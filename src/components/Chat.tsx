@@ -22,6 +22,8 @@ export function ChatApp() {
   const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelCfgOpen, setModelCfgOpen] = useState(false);
+  const [modelCfgTarget, setModelCfgTarget] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
