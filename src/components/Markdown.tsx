@@ -51,7 +51,9 @@ function CodeBlock({ language, value }: { language: string; value: string }) {
           language={language || "text"}
           style={oneDark}
           PreTag="div"
-          customStyle={{ margin: 0, background: "transparent", padding: "0.875rem 1rem", fontSize: "0.85rem", lineHeight: "1.5" }}
+          showLineNumbers
+          lineNumberStyle={{ minWidth: "2.25em", paddingRight: "1em", textAlign: "right", color: "oklch(0.5 0 0)", userSelect: "none", borderRight: "1px solid var(--color-border)", marginRight: "0.875em" }}
+          customStyle={{ margin: 0, background: "transparent", padding: "0.875rem 0", fontSize: "0.85rem", lineHeight: "1.5" }}
           codeTagProps={{ style: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" } }}
         >
           {value}

@@ -1,5 +1,6 @@
 export type Role = "user" | "assistant" | "system";
-export interface Message { id: string; role: Role; content: string; }
+export interface Attachment { name: string; mime: string; size: number; kind: "text" | "image"; data: string; }
+export interface Message { id: string; role: Role; content: string; attachments?: Attachment[]; }
 export interface Chat { id: string; title: string; messages: Message[]; createdAt: number; modelId: string; }
 export interface ModelConfig {
   temperature: number;
