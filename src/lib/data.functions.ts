@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { FILES, readJson, writeJson } from "./storage.server";
+import { FILES, readJson, writeJson } from "@/server/storage.server";
 import type { Chat, Settings } from "@/lib/types";
 import { defaultSettings } from "@/lib/types";
 

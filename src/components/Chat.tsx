@@ -11,7 +11,7 @@ import {
   type Chat, type Message, type Settings,
   defaultSettings, uid,
 } from "@/lib/types";
-import { getChats, saveChatsFn, getSettingsFn, saveSettingsFn } from "@/server/data.functions";
+import { getChats, saveChatsFn, getSettingsFn, saveSettingsFn } from "@/lib/data.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
