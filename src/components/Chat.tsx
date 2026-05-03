@@ -93,7 +93,25 @@ export function ChatApp() {
       const trimmed = ctxLimit > 0 ? baseMessages.slice(-ctxLimit) : baseMessages;
       const payloadMessages = [
         ...(settings.systemPrompt ? [{ role: "system", content: settings.systemPrompt }] : []),
-        ...trimmed.map(m => ({ role: m.role, content: m.content })),
+        ...trimmed.map(m => {
+          const atts = m.attachments ?? [];
+          const images = atts.filter(a => a.kind === "image");
+          const texts = atts.filter(a => a.kind === "text");
+          let textContent = m.content;
+          if (texts.length) {
+            textContent += "\n\n" + texts.map(t => `--- File: ${t.name} ---\n${t.data}`).join("\n\n");
+          }
+          if (images.length) {
+            return {
+              role: m.role,
+              content: [
+                { type: "text", text: textContent || " " },
+                ...images.map(img => ({ type: "image_url", image_url: { url: img.data } })),
+              ],
+            };
+          }
+          return { role: m.role, content: textContent };
+        }),
       ];
       const body: any = {
         model: activeModel.model,
@@ -167,7 +185,7 @@ export function ChatApp() {
 
   const send = async () => {
     const text = input.trim();
-    if (!text || streaming) return;
+    if ((!text && pending.length === 0) || streaming) return;
     if (!settings.apiKey) {
       toast.error("Add your NVIDIA NIM API key in Settings");
       setSettingsOpen(true);
@@ -179,7 +197,7 @@ export function ChatApp() {
     if (!chat) {
       chat = {
         id: uid(),
-        title: text.slice(0, 40),
+        title: (text || pending[0]?.name || "New chat").slice(0, 40),
         messages: [],
         createdAt: Date.now(),
         modelId: settings.activeModelId,
@@ -187,11 +205,12 @@ export function ChatApp() {
       setChats(prev => [chat!, ...prev]);
       setActiveId(chat.id);
     }
-    const userMsg: Message = { id: uid(), role: "user", content: text };
+    const userMsg: Message = { id: uid(), role: "user", content: text, attachments: pending.length ? pending : undefined };
     const assistantMsg: Message = { id: uid(), role: "assistant", content: "" };
     const baseMessages = [...chat.messages, userMsg];
     updateChat(chat.id, c => ({ ...c, messages: [...baseMessages, assistantMsg] }));
     setInput("");
+    setPending([]);
     await runCompletion(chat.id, baseMessages, assistantMsg.id);
   };
 
