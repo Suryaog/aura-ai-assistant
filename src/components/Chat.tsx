@@ -360,7 +360,6 @@ export function ChatApp() {
           {!active || active.messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center px-6 text-center">
               <h1 className="text-2xl md:text-3xl font-semibold">What can I help with?</h1>
-              <p className="text-sm text-muted-foreground mt-2">Powered by NVIDIA NIM</p>
             </div>
           ) : (
             <div className="mx-auto w-full max-w-3xl px-4 py-6 space-y-6">
