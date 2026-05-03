@@ -89,22 +89,31 @@ export function ChatApp() {
     abortRef.current = controller;
 
     try {
+      const ctxLimit = activeModel.config.contextWindow;
+      const trimmed = ctxLimit > 0 ? baseMessages.slice(-ctxLimit) : baseMessages;
       const payloadMessages = [
         ...(settings.systemPrompt ? [{ role: "system", content: settings.systemPrompt }] : []),
-        ...baseMessages.map(m => ({ role: m.role, content: m.content })),
+        ...trimmed.map(m => ({ role: m.role, content: m.content })),
       ];
-      const resp = await fetch(`${settings.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      const body: any = {
+        model: activeModel.model,
+        messages: payloadMessages,
+        stream: true,
+        temperature: activeModel.config.temperature,
+        top_p: activeModel.config.topP,
+        max_tokens: activeModel.config.maxTokens,
+        frequency_penalty: activeModel.config.frequencyPenalty,
+        presence_penalty: activeModel.config.presencePenalty,
+      };
+      if (activeModel.config.thinking) body.chat_template_kwargs = { thinking: true };
+      const resp = await fetch(`/api/nim`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${settings.apiKey}`,
+          "x-api-key": settings.apiKey,
+          "x-base-url": settings.baseUrl,
         },
-        body: JSON.stringify({
-          model: activeModel.model,
-          messages: payloadMessages,
-          stream: true,
-          temperature: 0.7,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       if (!resp.ok || !resp.body) {
