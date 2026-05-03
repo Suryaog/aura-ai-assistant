@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,10 @@ export function SettingsDialog({
   const [draft, setDraft] = useState<Settings>(settings);
   const [newLabel, setNewLabel] = useState("");
   const [newModel, setNewModel] = useState("");
+
+  useEffect(() => {
+    if (open) setDraft(settings);
+  }, [open, settings]);
 
   const update = (patch: Partial<Settings>) => setDraft({ ...draft, ...patch });
 
