@@ -40,7 +40,7 @@ export function SettingsDialog({
   const save = () => { onChange(draft); onOpenChange(false); };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (o) setDraft(settings); onOpenChange(o); }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
