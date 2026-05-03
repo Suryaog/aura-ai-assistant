@@ -29,6 +29,8 @@ export function ChatApp() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [pending, setPending] = useState<Attachment[]>([]);
 
   // Initial load from server
   useEffect(() => {
