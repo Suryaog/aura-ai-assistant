@@ -379,31 +379,59 @@ export function ChatApp() {
 
         <div className="bg-background">
           <div className="mx-auto w-full max-w-3xl px-3 md:px-4 py-3">
-            <div className="flex items-end gap-2 rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-ring transition">
-              <textarea
-                ref={taRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-                }}
-                rows={1}
-                placeholder="Ask anything"
-                className="flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground max-h-[200px]"
-              />
-              {streaming ? (
-                <Button size="icon" onClick={stop} className="h-9 w-9 rounded-full" aria-label="Stop">
-                  <Square className="h-4 w-4 fill-current" />
-                </Button>
-              ) : (
-                <Button size="icon" onClick={send} disabled={!input.trim()} className="h-9 w-9 rounded-full" aria-label="Send">
-                  <ArrowUp className="h-4 w-4" />
-                </Button>
+            <div className="rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-ring transition">
+              {pending.length > 0 && (
+                <div className="flex flex-wrap gap-2 px-1 pt-1 pb-2 border-b border-border mb-1">
+                  {pending.map((a, i) => (
+                    <div key={i} className="group relative flex items-center gap-2 rounded-lg border border-border bg-background pl-2 pr-1 py-1 text-xs">
+                      {a.kind === "image" ? (
+                        <img src={a.data} alt={a.name} className="h-8 w-8 rounded object-cover" />
+                      ) : (
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="max-w-[140px] truncate">{a.name}</span>
+                      <button onClick={() => setPending(p => p.filter((_, j) => j !== i))} className="p-0.5 rounded hover:bg-accent text-muted-foreground" aria-label="Remove">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
+              <div className="flex items-end gap-1">
+                <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition shrink-0"
+                  aria-label="Attach files"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </button>
+                <textarea
+                  ref={taRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+                  }}
+                  rows={1}
+                  placeholder="Ask anything"
+                  className="flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground max-h-[200px]"
+                />
+                {streaming ? (
+                  <Button size="icon" onClick={stop} className="h-9 w-9 rounded-full" aria-label="Stop">
+                    <Square className="h-4 w-4 fill-current" />
+                  </Button>
+                ) : (
+                  <Button size="icon" onClick={send} disabled={!input.trim() && pending.length === 0} className="h-9 w-9 rounded-full" aria-label="Send">
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </main>
+
 
       <SettingsDialog
         open={settingsOpen}
