@@ -457,10 +457,24 @@ export function ChatApp() {
 function MessageBubble({ message, isLast, streaming, onRegenerate }: { message: Message; isLast: boolean; streaming: boolean; onRegenerate: () => void }) {
   if (message.role === "user") {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-3xl bg-bubble text-bubble-foreground px-4 py-2.5 whitespace-pre-wrap text-[15px]">
-          {message.content}
-        </div>
+      <div className="flex flex-col items-end gap-1.5">
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5 max-w-[85%]">
+            {message.attachments.map((a, i) => a.kind === "image" ? (
+              <img key={i} src={a.data} alt={a.name} className="h-24 w-24 rounded-xl object-cover border border-border" />
+            ) : (
+              <div key={i} className="flex items-center gap-2 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs">
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="max-w-[160px] truncate">{a.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {message.content && (
+          <div className="max-w-[85%] rounded-3xl bg-bubble text-bubble-foreground px-4 py-2.5 whitespace-pre-wrap text-[15px]">
+            {message.content}
+          </div>
+        )}
       </div>
     );
   }
