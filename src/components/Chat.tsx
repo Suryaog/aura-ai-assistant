@@ -30,6 +30,7 @@ export function ChatApp() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const skipInitialChatsSaveRef = useRef(true);
   const [pending, setPending] = useState<Attachment[]>([]);
 
   // Initial load from server
@@ -39,6 +40,7 @@ export function ChatApp() {
         const [s, c] = await Promise.all([getSettingsFn(), getChats()]);
         setSettings(s);
         setChats(c);
+        setActiveId(c[0]?.id ?? null);
       } catch (e) {
         console.error(e);
       } finally {
@@ -50,18 +52,24 @@ export function ChatApp() {
   // Persist to server (debounced)
   useEffect(() => {
     if (!loaded) return;
-    const t = setTimeout(() => { saveChatsFn({ data: { chats } }).catch(() => {}); }, 250);
+    if (skipInitialChatsSaveRef.current) {
+      skipInitialChatsSaveRef.current = false;
+      return;
+    }
+    const t = setTimeout(() => { saveChatsFn({ data: { chats } }).catch(console.error); }, 250);
     return () => clearTimeout(t);
   }, [chats, loaded]);
 
-  useEffect(() => {
-    if (!loaded) return;
-    const t = setTimeout(() => { saveSettingsFn({ data: { settings } }).catch(() => {}); }, 250);
-    return () => clearTimeout(t);
-  }, [settings, loaded]);
-
   const active = useMemo(() => chats.find(c => c.id === activeId) ?? null, [chats, activeId]);
   const activeModel = settings.models.find(m => m.id === settings.activeModelId) ?? settings.models[0];
+
+  const persistSettings = (next: Settings) => {
+    setSettings(next);
+    if (loaded) saveSettingsFn({ data: { settings: next } }).catch((error) => {
+      console.error(error);
+      toast.error("Settings failed to save");
+    });
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -321,7 +329,7 @@ export function ChatApp() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-64">
                 {settings.models.map(m => (
-                  <DropdownMenuItem key={m.id} onSelect={(e) => { e.preventDefault(); setSettings({ ...settings, activeModelId: m.id }); }}>
+                  <DropdownMenuItem key={m.id} onSelect={(e) => { e.preventDefault(); persistSettings({ ...settings, activeModelId: m.id }); }}>
                     <div className="flex flex-1 flex-col min-w-0">
                       <span className="text-sm flex items-center gap-1.5">
                         {m.id === settings.activeModelId && <Check className="h-3.5 w-3.5" />}
@@ -436,14 +444,14 @@ export function ChatApp() {
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         settings={settings}
-        onChange={setSettings}
+        onChange={persistSettings}
       />
       <ModelConfigDialog
         open={modelCfgOpen}
         onOpenChange={setModelCfgOpen}
         model={settings.models.find(m => m.id === modelCfgTarget) ?? null}
         onSave={(cfg, modelId, label) => {
-          setSettings({
+          persistSettings({
             ...settings,
             models: settings.models.map(m => m.id === modelCfgTarget ? { ...m, config: cfg, model: modelId, label } : m),
           });

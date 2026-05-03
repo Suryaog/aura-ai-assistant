@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,10 @@ export function SettingsDialog({
   const [newLabel, setNewLabel] = useState("");
   const [newModel, setNewModel] = useState("");
 
+  useEffect(() => {
+    if (open) setDraft(settings);
+  }, [open, settings]);
+
   const update = (patch: Partial<Settings>) => setDraft({ ...draft, ...patch });
 
   const addModel = () => {
@@ -36,7 +40,7 @@ export function SettingsDialog({
   const save = () => { onChange(draft); onOpenChange(false); };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (o) setDraft(settings); onOpenChange(o); }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>

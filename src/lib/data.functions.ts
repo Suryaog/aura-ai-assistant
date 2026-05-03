@@ -16,10 +16,12 @@ export const saveChatsFn = createServerFn({ method: "POST" })
 
 export const getSettingsFn = createServerFn({ method: "GET" }).handler(async () => {
   const raw = await readJson<Partial<Settings>>(FILES.SETTINGS_FILE, {});
+  const models = raw.models && raw.models.length ? raw.models : defaultSettings.models;
   const merged: Settings = {
     ...defaultSettings,
     ...raw,
-    models: (raw.models && raw.models.length ? raw.models : defaultSettings.models),
+    models,
+    activeModelId: models.some((model) => model.id === raw.activeModelId) ? raw.activeModelId! : models[0]?.id ?? defaultSettings.activeModelId,
   };
   return merged;
 });
