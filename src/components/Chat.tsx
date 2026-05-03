@@ -312,9 +312,6 @@ export function ChatApp() {
                 </Button>
               )}
             </div>
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              {activeModel?.model ?? "no model"} · stored locally
-            </p>
           </div>
         </div>
       </main>
@@ -324,6 +321,17 @@ export function ChatApp() {
         onOpenChange={setSettingsOpen}
         settings={settings}
         onChange={setSettings}
+      />
+      <ModelConfigDialog
+        open={modelCfgOpen}
+        onOpenChange={setModelCfgOpen}
+        model={settings.models.find(m => m.id === modelCfgTarget) ?? null}
+        onSave={(cfg, modelId, label) => {
+          setSettings({
+            ...settings,
+            models: settings.models.map(m => m.id === modelCfgTarget ? { ...m, config: cfg, model: modelId, label } : m),
+          });
+        }}
       />
     </div>
   );
