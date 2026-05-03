@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare } from "lucide-react";
+import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { SettingsDialog } from "./SettingsDialog";
+import { ModelConfigDialog } from "./ModelConfigDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -21,6 +22,8 @@ export function ChatApp() {
   const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelCfgOpen, setModelCfgOpen] = useState(false);
+  const [modelCfgTarget, setModelCfgTarget] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -86,22 +89,31 @@ export function ChatApp() {
     abortRef.current = controller;
 
     try {
+      const ctxLimit = activeModel.config.contextWindow;
+      const trimmed = ctxLimit > 0 ? baseMessages.slice(-ctxLimit) : baseMessages;
       const payloadMessages = [
         ...(settings.systemPrompt ? [{ role: "system", content: settings.systemPrompt }] : []),
-        ...baseMessages.map(m => ({ role: m.role, content: m.content })),
+        ...trimmed.map(m => ({ role: m.role, content: m.content })),
       ];
-      const resp = await fetch(`${settings.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      const body: any = {
+        model: activeModel.model,
+        messages: payloadMessages,
+        stream: true,
+        temperature: activeModel.config.temperature,
+        top_p: activeModel.config.topP,
+        max_tokens: activeModel.config.maxTokens,
+        frequency_penalty: activeModel.config.frequencyPenalty,
+        presence_penalty: activeModel.config.presencePenalty,
+      };
+      if (activeModel.config.thinking) body.chat_template_kwargs = { thinking: true };
+      const resp = await fetch(`/api/nim`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${settings.apiKey}`,
+          "x-api-key": settings.apiKey,
+          "x-base-url": settings.baseUrl,
         },
-        body: JSON.stringify({
-          model: activeModel.model,
-          messages: payloadMessages,
-          stream: true,
-          temperature: 0.7,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       if (!resp.ok || !resp.body) {
@@ -216,27 +228,46 @@ export function ChatApp() {
           <button className="md:hidden p-2 -ml-2 text-foreground" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-base font-semibold hover:bg-accent transition">
-                {activeModel?.label ?? "No model"}
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {settings.models.map(m => (
-                <DropdownMenuItem key={m.id} onClick={() => setSettings({ ...settings, activeModelId: m.id })}>
-                  <div className="flex flex-col">
-                    <span className="text-sm">{m.label}</span>
-                    <span className="text-xs text-muted-foreground font-mono">{m.model}</span>
-                  </div>
+          <div className="flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-base font-semibold hover:bg-accent transition">
+                  {activeModel?.label ?? "No model"}
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-64">
+                {settings.models.map(m => (
+                  <DropdownMenuItem key={m.id} onSelect={(e) => { e.preventDefault(); setSettings({ ...settings, activeModelId: m.id }); }}>
+                    <div className="flex flex-1 flex-col min-w-0">
+                      <span className="text-sm flex items-center gap-1.5">
+                        {m.id === settings.activeModelId && <Check className="h-3.5 w-3.5" />}
+                        {m.label}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono truncate">{m.model}</span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setModelCfgTarget(m.id); setModelCfgOpen(true); }}
+                      className="ml-2 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                      aria-label="Configure"
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                    </button>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-2" /> Add / manage models
                 </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-2" /> Add / manage models
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button
+              onClick={() => { if (activeModel) { setModelCfgTarget(activeModel.id); setModelCfgOpen(true); } }}
+              className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition"
+              aria-label="Model config"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
+          </div>
           <button onClick={newChat} className="p-2 -mr-2 text-foreground hover:text-foreground" aria-label="New chat">
             <Plus className="h-5 w-5" />
           </button>
@@ -281,9 +312,6 @@ export function ChatApp() {
                 </Button>
               )}
             </div>
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              {activeModel?.model ?? "no model"} · stored locally
-            </p>
           </div>
         </div>
       </main>
@@ -293,6 +321,17 @@ export function ChatApp() {
         onOpenChange={setSettingsOpen}
         settings={settings}
         onChange={setSettings}
+      />
+      <ModelConfigDialog
+        open={modelCfgOpen}
+        onOpenChange={setModelCfgOpen}
+        model={settings.models.find(m => m.id === modelCfgTarget) ?? null}
+        onSave={(cfg, modelId, label) => {
+          setSettings({
+            ...settings,
+            models: settings.models.map(m => m.id === modelCfgTarget ? { ...m, config: cfg, model: modelId, label } : m),
+          });
+        }}
       />
     </div>
   );
