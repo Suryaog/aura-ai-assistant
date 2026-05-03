@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check, Copy, ThumbsUp, ThumbsDown, RotateCcw } from "lucide-react";
+import { ArrowUp, Menu, Plus, Settings as SettingsIcon, Trash2, ChevronDown, Square, MessageSquare, SlidersHorizontal, Check, Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, X, FileText } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { SettingsDialog } from "./SettingsDialog";
 import { ModelConfigDialog } from "./ModelConfigDialog";
@@ -8,10 +8,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  type Chat, type Message, type Settings,
+  type Chat, type Message, type Settings, type Attachment,
   defaultSettings, uid,
 } from "@/lib/types";
-import { getChats, saveChatsFn, getSettingsFn, saveSettingsFn } from "@/server/data.functions";
+import { getChats, saveChatsFn, getSettingsFn, saveSettingsFn } from "@/lib/data.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +29,8 @@ export function ChatApp() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [pending, setPending] = useState<Attachment[]>([]);
 
   // Initial load from server
   useEffect(() => {
@@ -91,7 +93,25 @@ export function ChatApp() {
       const trimmed = ctxLimit > 0 ? baseMessages.slice(-ctxLimit) : baseMessages;
       const payloadMessages = [
         ...(settings.systemPrompt ? [{ role: "system", content: settings.systemPrompt }] : []),
-        ...trimmed.map(m => ({ role: m.role, content: m.content })),
+        ...trimmed.map(m => {
+          const atts = m.attachments ?? [];
+          const images = atts.filter(a => a.kind === "image");
+          const texts = atts.filter(a => a.kind === "text");
+          let textContent = m.content;
+          if (texts.length) {
+            textContent += "\n\n" + texts.map(t => `--- File: ${t.name} ---\n${t.data}`).join("\n\n");
+          }
+          if (images.length) {
+            return {
+              role: m.role,
+              content: [
+                { type: "text", text: textContent || " " },
+                ...images.map(img => ({ type: "image_url", image_url: { url: img.data } })),
+              ],
+            };
+          }
+          return { role: m.role, content: textContent };
+        }),
       ];
       const body: any = {
         model: activeModel.model,
@@ -165,7 +185,7 @@ export function ChatApp() {
 
   const send = async () => {
     const text = input.trim();
-    if (!text || streaming) return;
+    if ((!text && pending.length === 0) || streaming) return;
     if (!settings.apiKey) {
       toast.error("Add your NVIDIA NIM API key in Settings");
       setSettingsOpen(true);
@@ -177,7 +197,7 @@ export function ChatApp() {
     if (!chat) {
       chat = {
         id: uid(),
-        title: text.slice(0, 40),
+        title: (text || pending[0]?.name || "New chat").slice(0, 40),
         messages: [],
         createdAt: Date.now(),
         modelId: settings.activeModelId,
@@ -185,11 +205,12 @@ export function ChatApp() {
       setChats(prev => [chat!, ...prev]);
       setActiveId(chat.id);
     }
-    const userMsg: Message = { id: uid(), role: "user", content: text };
+    const userMsg: Message = { id: uid(), role: "user", content: text, attachments: pending.length ? pending : undefined };
     const assistantMsg: Message = { id: uid(), role: "assistant", content: "" };
     const baseMessages = [...chat.messages, userMsg];
     updateChat(chat.id, c => ({ ...c, messages: [...baseMessages, assistantMsg] }));
     setInput("");
+    setPending([]);
     await runCompletion(chat.id, baseMessages, assistantMsg.id);
   };
 
@@ -205,6 +226,31 @@ export function ChatApp() {
   };
 
   const stop = () => { abortRef.current?.abort(); };
+
+  const onFiles = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    const remaining = 20 - pending.length;
+    if (remaining <= 0) { toast.error("Max 20 files"); return; }
+    const list = Array.from(files).slice(0, remaining);
+    const out: Attachment[] = [];
+    for (const f of list) {
+      if (f.size > 10 * 1024 * 1024) { toast.error(`${f.name} too large (max 10MB)`); continue; }
+      const isImage = f.type.startsWith("image/");
+      try {
+        if (isImage) {
+          const data = await new Promise<string>((res, rej) => {
+            const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(f);
+          });
+          out.push({ name: f.name, mime: f.type, size: f.size, kind: "image", data });
+        } else {
+          const data = await f.text();
+          out.push({ name: f.name, mime: f.type || "text/plain", size: f.size, kind: "text", data });
+        }
+      } catch { toast.error(`Failed to read ${f.name}`); }
+    }
+    setPending(p => [...p, ...out]);
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   return (
     <div className="flex h-dvh w-full bg-background text-foreground overflow-hidden">
@@ -333,31 +379,59 @@ export function ChatApp() {
 
         <div className="bg-background">
           <div className="mx-auto w-full max-w-3xl px-3 md:px-4 py-3">
-            <div className="flex items-end gap-2 rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-ring transition">
-              <textarea
-                ref={taRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-                }}
-                rows={1}
-                placeholder="Ask anything"
-                className="flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground max-h-[200px]"
-              />
-              {streaming ? (
-                <Button size="icon" onClick={stop} className="h-9 w-9 rounded-full" aria-label="Stop">
-                  <Square className="h-4 w-4 fill-current" />
-                </Button>
-              ) : (
-                <Button size="icon" onClick={send} disabled={!input.trim()} className="h-9 w-9 rounded-full" aria-label="Send">
-                  <ArrowUp className="h-4 w-4" />
-                </Button>
+            <div className="rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-ring transition">
+              {pending.length > 0 && (
+                <div className="flex flex-wrap gap-2 px-1 pt-1 pb-2 border-b border-border mb-1">
+                  {pending.map((a, i) => (
+                    <div key={i} className="group relative flex items-center gap-2 rounded-lg border border-border bg-background pl-2 pr-1 py-1 text-xs">
+                      {a.kind === "image" ? (
+                        <img src={a.data} alt={a.name} className="h-8 w-8 rounded object-cover" />
+                      ) : (
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="max-w-[140px] truncate">{a.name}</span>
+                      <button onClick={() => setPending(p => p.filter((_, j) => j !== i))} className="p-0.5 rounded hover:bg-accent text-muted-foreground" aria-label="Remove">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
+              <div className="flex items-end gap-1">
+                <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition shrink-0"
+                  aria-label="Attach files"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </button>
+                <textarea
+                  ref={taRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+                  }}
+                  rows={1}
+                  placeholder="Ask anything"
+                  className="flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground max-h-[200px]"
+                />
+                {streaming ? (
+                  <Button size="icon" onClick={stop} className="h-9 w-9 rounded-full" aria-label="Stop">
+                    <Square className="h-4 w-4 fill-current" />
+                  </Button>
+                ) : (
+                  <Button size="icon" onClick={send} disabled={!input.trim() && pending.length === 0} className="h-9 w-9 rounded-full" aria-label="Send">
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </main>
+
 
       <SettingsDialog
         open={settingsOpen}
@@ -383,10 +457,24 @@ export function ChatApp() {
 function MessageBubble({ message, isLast, streaming, onRegenerate }: { message: Message; isLast: boolean; streaming: boolean; onRegenerate: () => void }) {
   if (message.role === "user") {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-3xl bg-bubble text-bubble-foreground px-4 py-2.5 whitespace-pre-wrap text-[15px]">
-          {message.content}
-        </div>
+      <div className="flex flex-col items-end gap-1.5">
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5 max-w-[85%]">
+            {message.attachments.map((a, i) => a.kind === "image" ? (
+              <img key={i} src={a.data} alt={a.name} className="h-24 w-24 rounded-xl object-cover border border-border" />
+            ) : (
+              <div key={i} className="flex items-center gap-2 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs">
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="max-w-[160px] truncate">{a.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {message.content && (
+          <div className="max-w-[85%] rounded-3xl bg-bubble text-bubble-foreground px-4 py-2.5 whitespace-pre-wrap text-[15px]">
+            {message.content}
+          </div>
+        )}
       </div>
     );
   }
